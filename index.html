@@ -11,7 +11,74 @@
 
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   <script>
-    let globalKeyMap = {};
+    const idMap = {
+      1: 2, 83: 3, 2: 4, 3: 5, 4: 6, 502: 6, 5: 7, 6: 8, 7: 9,
+      1903: 10, 40: 10, 8: 11, 39: 12, 1715: 13, 9: 13, 18: 14,
+      35: 15, 36: 16, 17: 17, 41: 18, 13: 19, 12: 20, 111: 21,
+      200: 22, 201: 23, 202: 24, 203: 25, 1334: 26, 1333: 27,
+      1332: 28, 11: 29, 10: 30, 31: 31, 84: 32, 67: 33, 1022: 34,
+      141: 35, 140: 36, 1330: 37, 47: 38, 660: 39, 1755: 40,
+      899: 41, 29: 41, 30: 41, 1705: 42, 88: 42, 1706: 43, 89: 43,
+      1707: 44, 98: 44, 1329: 45, 68: 46, 66: 47, 62: 48, 65: 49
+    };
+
+    const rotationAddKey4 = {
+      2: 0, 3: 0, 4: 0, 5: 90, 6: 90, 7: 0, 8: 0, 9: 0, 10: 0,
+      11: 0, 12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0,
+      19: 180, 20: 180, 21: 180, 22: 180, 23: 180, 24: 180, 25: 180,
+      26: 180, 27: 0, 28: 0, 29: 180, 30: 180, 31: 0, 32: 0,
+      33: 0, 34: 0, 35: 0, 36: 0, 37: 0, 38: 180, 39: 180, 40: 180,
+      41: 0, 42: 0, 43: 0, 44: 0, 45: 0, 46: 0, 47: 0, 48: 0, 49: 0
+    };
+
+    const rotationAddKey5 = {
+      2: 180, 3: 0, 4: 180, 5: 270, 6: 270, 7: 0, 8: 180, 9: 0,
+      10: 180, 11: 180, 12: 180, 13: 180, 14: 180, 15: 180, 16: 0,
+      17: 180, 18: 180, 19: 0, 20: 0, 21: 0, 22: 0, 23: 0, 24: 0,
+      25: 0, 26: 0, 27: 0, 28: 180, 29: 0, 30: 0, 31: 180, 32: 0,
+      33: 180, 34: 0, 35: 0, 36: 180, 37: 0, 38: 0, 39: 0, 40: 0,
+      41: 180, 42: 0, 43: 0, 44: 0, 45: 0, 46: 180, 47: 180, 48: 180, 49: 180
+    };
+
+    const yOffsetMap = {
+      10: -8, 12: 9, 13: 12.5, 14: -4, 15: 13,
+      17: 8, 18: -18, 28: 12.5, 33: 12, 36: 13,
+      46: -7, 47: -7, 48: -7, 49: -7
+    };
+
+    function normalizeRotation(deg) {
+      return ((deg % 360) + 360) % 360;
+    }
+
+    function mapGameMode(raw) {
+      switch (raw) {
+        case 0: return 1;
+        case 1: return 2;
+        case 2: return 4;
+        case 3: return 3;
+        case 4: return 5;
+        default: return 5;
+      }
+    }
+
+    function mapLevelSpeed(floatSpeed) {
+      if (floatSpeed === 0.5 || floatSpeed === 0.6) return 1;
+      switch (floatSpeed) {
+        case 1: return 2;
+        case 2: return 3;
+        case 3: return 4;
+        case 4: return 5;
+        default: return 2;
+      }
+    }
+
+    function rgbTo24Bit(r, g, b) {
+      return (r << 16) + (g << 8) + b;
+    }
+
+    function roundToNearest(value, multiple) {
+      return Math.round(value / multiple) * multiple;
+    }
 
     function base64Clean(b) {
       b = b.replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
@@ -26,59 +93,19 @@
       return arr;
     }
 
-    function mapLevelSpeed(floatSpeed) {
-      if (floatSpeed === 0.5 || floatSpeed === 0.6) return 1;
-      switch (floatSpeed) {
-        case 1: return 2;
-        case 2: return 3;
-        case 3: return 4;
-        case 4: return 5;
-        default: return 2;
+    function encodeRLE(array) {
+      let result = [];
+      let i = 0;
+      while (i < array.length) {
+        let count = 1;
+        while (i + count < array.length && array[i] === array[i + count]) {
+          count++;
+        }
+        result.push(`${array[i]},(${count})`);
+        i += count;
       }
+      return result.join("");
     }
-
-    function mapGameMode(raw) {
-      switch (raw) {
-        case 0: return 1;
-        case 1: return 2;
-        case 2: return 4;
-        case 3: return 3;
-        case 4: return 5;
-        default: return 5;
-      }
-    }
-
-    function rgbTo24Bit(r, g, b) {
-      return (r << 16) + (g << 8) + b;
-    }
-
-    function normalizeRotation(deg) {
-      return ((deg % 360) + 360) % 360;
-    }
-
-    const extraRotations = {
-      1: null, 2: 0, 3: 0, 4: 0, 5: 90, 6: 90, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0,
-      12: 0, 13: 0, 14: 0, 15: 0, 16: 0, 17: 0, 18: 0, 19: 180, 20: 180, 21: 180,
-      22: 180, 23: 180, 24: 180, 25: 180, 26: 180, 27: 0, 28: 0, 29: 180, 30: 180,
-      31: 0, 32: 0, 33: 0, 34: 0, 35: 0, 36: 0, 37: 0, 38: 180, 39: 180, 40: 180,
-      41: 0, 42: 0, 43: 0, 44: 0, 45: 0, 46: 0, 47: 0, 48: 0, 49: 0
-    };
-
-    const yOffsets = {
-      10: -8, 12: 9, 13: 12.5, 14: -4, 15: 13, 17: 8, 18: 10.5, 28: 12.5,
-      33: 12, 36: 13, 46: -7, 47: -7, 48: -7, 49: -7
-    };
-
-    const idMap = {
-      1: 2, 83: 3, 2: 4, 3: 5, 4: 6, 502: 6, 5: 7, 6: 8, 7: 9,
-      1903: 10, 40: 10, 8: 11, 39: 12, 1715: 13, 9: 13, 18: 14,
-      35: 15, 36: 16, 17: 17, 41: 18, 13: 19, 12: 20, 111: 21,
-      200: 22, 201: 23, 202: 24, 203: 25, 1334: 26, 1333: 27,
-      1332: 28, 11: 29, 10: 30, 31: 31, 84: 32, 67: 33, 1022: 34,
-      141: 35, 140: 36, 1330: 37, 47: 38, 660: 39, 1755: 40,
-      899: 41, 29: 41, 30: 41, 1705: 42, 88: 42, 1706: 43, 89: 43,
-      1707: 44, 98: 44, 1329: 45, 68: 46, 66: 47, 62: 48, 65: 49
-    };
 
     document.getElementById("f").onchange = e => {
       const file = e.target.files[0];
@@ -94,7 +121,6 @@
           allKeyValues[key] = val;
         }
 
-        globalKeyMap = allKeyValues;
         const k4 = allKeyValues["k4"];
         if (!k4) return out.textContent = "No k4 key found.";
 
@@ -107,29 +133,33 @@
 
         const sections = decompressed.split("|");
         let bgColor = 0, groundColor = 0;
-
-        const bgMatch = sections[0]?.match(/1_(\d+)_2_(\d+)_3_(\d+)/);
-        if (bgMatch) bgColor = rgbTo24Bit(...bgMatch.slice(1, 4).map(Number));
-
-        const grMatch = sections[1]?.match(/1_(\d+)_2_(\d+)_3_(\d+)/);
-        if (grMatch) groundColor = rgbTo24Bit(...grMatch.slice(1, 4).map(Number));
+        if (sections[0]) {
+          const m = sections[0].match(/1_(\d+)_2_(\d+)_3_(\d+)/);
+          if (m) bgColor = rgbTo24Bit(...m.slice(1, 4).map(Number));
+        }
+        if (sections[1]) {
+          const m = sections[1].match(/1_(\d+)_2_(\d+)_3_(\d+)/);
+          if (m) groundColor = rgbTo24Bit(...m.slice(1, 4).map(Number));
+        }
 
         const entries = decompressed.split(";").filter(e => e.trim());
         const objs = [];
 
         for (let i = 1; i < entries.length; i++) {
           const parts = entries[i].split(",");
-          let rawId = null, x = null, y = null, rot = 90, key4 = 0;
-          let key7 = 0, key8 = 0, key9 = 0, key10 = 0, key23 = 0;
+          let rawId = null, x = null, y = null;
+          let rotation = 90, k4 = 0, k5 = 0, key7 = 0, key8 = 0, key9 = 0, key10 = 0, key23 = 0;
 
           for (let j = 0; j + 1 < parts.length; j += 2) {
             const key = parts[j];
             const val = parts[j + 1];
+
             if (key === "1") rawId = parseInt(val);
             else if (key === "2") x = parseFloat(val);
             else if (key === "3") y = parseFloat(val);
-            else if (key === "4") key4 = parseInt(val);
-            else if (key === "6") rot = parseFloat(val) + 90;
+            else if (key === "4") k4 = parseInt(val);
+            else if (key === "5") k5 = parseInt(val);
+            else if (key === "6") rotation = normalizeRotation(parseFloat(val) + 90);
             else if (key === "7") key7 = parseInt(val);
             else if (key === "8") key8 = parseInt(val);
             else if (key === "9") key9 = parseInt(val);
@@ -140,23 +170,42 @@
           if (!(rawId in idMap)) continue;
           let mappedId = idMap[rawId];
 
-          // Handle special swap for 47 ↔ 49
-          if (key4 === 1) {
-            if (mappedId === 47) mappedId = 49;
-            else if (mappedId === 49) mappedId = 47;
-          }
+          if (mappedId === 47) mappedId = 49;
+          else if (mappedId === 49) mappedId = 47;
 
-          let rotation = normalizeRotation(rot);
-          if (key4 === 1 && extraRotations[mappedId] != null) {
-            rotation = normalizeRotation(rotation + extraRotations[mappedId]);
-          }
+          if (mappedId === 1) continue; // air, skip
+
+          if (k4 === 1) rotation += rotationAddKey4[mappedId] || 0;
+          if (k5 === 1) rotation += rotationAddKey5[mappedId] || 0;
+          rotation = normalizeRotation(rotation);
 
           let adjX = x + 15;
           let adjY = y + 165;
-          if (yOffsets[mappedId]) adjY += yOffsets[mappedId];
 
-          const roundedX = Math.round(adjX / 30) * 30;
-          const roundedY = Math.round(adjY / 30) * 30;
+          // Apply y offset mapping based on rotation per your table:
+          let yOffset = yOffsetMap[mappedId] || 0;
+          let offsetXAdj = 0;
+          let offsetYAdj = 0;
+
+          if (rotation === 90) { // rot 1
+            offsetXAdj = 0;
+            offsetYAdj = yOffset;
+          } else if (rotation === 180) { // rot 2
+            offsetXAdj = -yOffset;
+            offsetYAdj = 0;
+          } else if (rotation === 270) { // rot 3
+            offsetXAdj = 0;
+            offsetYAdj = -yOffset;
+          } else if (rotation === 0) { // rot 4
+            offsetXAdj = yOffset;
+            offsetYAdj = 0;
+          }
+
+          adjX += offsetXAdj;
+          adjY += offsetYAdj;
+
+          const roundedX = roundToNearest(adjX, 30);
+          const roundedY = roundToNearest(adjY, 30);
           const gridX = roundedX / 30;
           const gridY = roundedY / 30;
           const offsetX = Math.floor(adjX - roundedX);
@@ -166,19 +215,16 @@
 
           const obj = {
             id: mappedId,
-            rotation,
-            gridX,
-            gridY,
-            offsetX,
-            offsetY,
+            rotation: rotation,
+            gridX, gridY,
+            offsetX, offsetY,
             editObject: 0
           };
 
           if (mappedId === 41) {
-            let type = (rawId === 29) ? 1 : (rawId === 30) ? 2 : (key23 === 1000) ? 1 : (key23 === 1001) ? 2 : null;
+            let type = rawId === 29 ? 1 : rawId === 30 ? 2 : key23 === 1000 ? 1 : key23 === 1001 ? 2 : null;
             obj.editObject = {
-              type,
-              duration: key10,
+              type, duration: key10,
               color: rgbTo24Bit(key7, key8, key9)
             };
           }
@@ -186,48 +232,21 @@
           objs.push(obj);
         }
 
-        const speedMatch = decompressed.match(/kA4,(\d+)/);
-        const speed = mapLevelSpeed(speedMatch ? parseInt(speedMatch[1]) : 0);
-
-        const gameModeMatch = decompressed.match(/kA2,(\d+)/);
-        const gamemode = mapGameMode(gameModeMatch ? parseInt(gameModeMatch[1]) : 0);
-
-        let songKey = parseInt(globalKeyMap["k8"] ?? 0) + 1;
-        if (songKey > 7) songKey = 7;
-        const song = `N${songKey}`;
-
-        function encodeRLE(array) {
-          let result = [];
-          let i = 0;
-          while (i < array.length) {
-            let count = 1;
-            while (i + count < array.length && array[i] === array[i + count]) count++;
-            result.push(`${array[i]},(${count})`);
-            i += count;
-          }
-          return result.join("");
-        }
-
-        const gridWidth = 3125;
-        const gridHeight = 64;
-        const totalTiles = gridWidth * gridHeight;
-
-        const blockGrid = Array(totalTiles).fill().map(() => []);
-        const rotGrid = Array(totalTiles).fill().map(() => []);
-        const editGrid = Array(totalTiles).fill().map(() => []);
-        const offsetGrid = Array(totalTiles).fill().map(() => []);
+        const blockGrid = Array(3125 * 64).fill().map(() => []);
+        const rotGrid = Array(3125 * 64).fill().map(() => []);
+        const editGrid = Array(3125 * 64).fill().map(() => []);
+        const offsetGrid = Array(3125 * 64).fill().map(() => []);
 
         objs.forEach(obj => {
-          const index = (Math.floor(obj.gridY) - 1) * gridWidth + (Math.floor(obj.gridX) - 1);
-          if (index < 0 || index >= totalTiles) return;
-          blockGrid[index].push(obj.id);
-          rotGrid[index].push(obj.rotation / 90);
-          offsetGrid[index].push(`${obj.offsetX}&${obj.offsetY}`);
-          editGrid[index].push(obj.editObject !== 0
-            ? `${obj.editObject.color}s${obj.editObject.duration}t${obj.editObject.type}` : 0);
+          const idx = (Math.floor(obj.gridY) - 1) * 3125 + (Math.floor(obj.gridX) - 1);
+          if (idx < 0 || idx >= blockGrid.length) return;
+          blockGrid[idx].push(obj.id);
+          rotGrid[idx].push(obj.rotation / 90);
+          offsetGrid[idx].push(`${obj.offsetX}&${obj.offsetY}`);
+          editGrid[idx].push(obj.editObject !== 0 ? `${obj.editObject.color}s${obj.editObject.duration}t${obj.editObject.type}` : 0);
         });
 
-        for (let i = 0; i < totalTiles; i++) {
+        for (let i = 0; i < blockGrid.length; i++) {
           blockGrid[i].unshift(1);
           rotGrid[i].unshift(1);
           editGrid[i].unshift(0);
@@ -238,12 +257,17 @@
         const rotCode = "R" + encodeRLE(rotGrid.map(r => r.join(",")));
         const bgCode = "B" + bgColor;
         const grCode = "G" + groundColor;
+
+        const speed = mapLevelSpeed(parseInt((decompressed.match(/kA4,(\d+)/) || [])[1] || 0));
+        const gamemode = mapGameMode(parseInt((decompressed.match(/kA2,(\d+)/) || [])[1] || 0));
         const sCode = `S${gamemode}${speed}`;
+
         const editCode = "E" + encodeRLE(editGrid.map(e => e.join(",")));
-        const musicCode = `M${song}`;
+        const songKey = Math.min(parseInt(allKeyValues["k8"] ?? 0) + 1, 7);
+        const musicCode = `M${"N" + songKey}`;
         const offsetCode = "O" + encodeRLE(offsetGrid.map(o => o.join(",")));
 
-        out.textContent = `${blockCode}${rotCode}${bgCode}${grCode}${sCode}${editCode}${musicCode}${offsetCode}`;
+        out.textContent = blockCode + rotCode + bgCode + grCode + sCode + editCode + musicCode + offsetCode;
       };
       reader.readAsText(file);
     };
