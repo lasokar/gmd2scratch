@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>GD Level Extractor + Save Code Generator</title>
+  <title>GMD2SCRATCH by Lasokar</title>
 </head>
 <body>
-  <h1>Geometry Dash Level Extractor</h1>
+  <h1>Convert .gmd to Scratch!</h1>
   <input type="file" id="f" accept=".xml,.gmd" />
   <pre id="out"></pre>
 
@@ -42,7 +42,7 @@
 
     const yOffsetMap = {
       10: -8, 12: 9, 13: 12.5, 14: -4, 15: 13,
-      17: 8, 18: -18, 28: 12.5, 33: 12, 36: 13,
+      17: 8, 18: -18.5, 28: 12.5, 33: 12, 36: 13,
       46: -7, 47: -7, 48: -7, 49: -7
     };
 
@@ -173,7 +173,7 @@
           if (mappedId === 47) mappedId = 49;
           else if (mappedId === 49) mappedId = 47;
 
-          if (mappedId === 1) continue; // air, skip
+          if (mappedId === 1) continue;
 
           if (k4 === 1) rotation += rotationAddKey4[mappedId] || 0;
           if (k5 === 1) rotation += rotationAddKey5[mappedId] || 0;
@@ -182,22 +182,21 @@
           let adjX = x + 15;
           let adjY = y + 165;
 
-          // Apply y offset mapping based on rotation per your table:
           let yOffset = yOffsetMap[mappedId] || 0;
           let offsetXAdj = 0;
           let offsetYAdj = 0;
 
-          if (rotation === 90) { // rot 1
+          if (rotation === 90) {
             offsetXAdj = 0;
             offsetYAdj = yOffset;
-          } else if (rotation === 180) { // rot 2
-            offsetXAdj = -yOffset;
+          } else if (rotation === 180) {
+            offsetXAdj = yOffset;
             offsetYAdj = 0;
-          } else if (rotation === 270) { // rot 3
+          } else if (rotation === 270) {
             offsetXAdj = 0;
             offsetYAdj = -yOffset;
-          } else if (rotation === 0) { // rot 4
-            offsetXAdj = yOffset;
+          } else if (rotation === 0) {
+            offsetXAdj = -yOffset;
             offsetYAdj = 0;
           }
 
