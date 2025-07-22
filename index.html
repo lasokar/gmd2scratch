@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>GD Object Extractor with Save Code</title>
+  <meta charset="utf-8" />
+  <title>GD Level Extractor + Save Code Generator</title>
 </head>
 <body>
   <h1>Geometry Dash Level Extractor</h1>
   <input type="file" id="f" accept=".xml,.gmd" />
-  <button id="debugBtn" style="margin-top:10px;">Show Raw Keys</button>
   <pre id="out"></pre>
 
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
@@ -28,7 +27,7 @@
       return arr;
     }
 
-    function mapSpeed(floatSpeed) {
+    function mapLevelSpeed(floatSpeed) {
       if (floatSpeed === 0.5 || floatSpeed === 0.6) return 1;
       switch (floatSpeed) {
         case 1: return 2;
@@ -39,7 +38,7 @@
       }
     }
 
-    function mapGamemode(raw) {
+    function mapGameMode(raw) {
       switch (raw) {
         case 0: return 1;
         case 1: return 2;
@@ -95,25 +94,30 @@
           return out.textContent = "Decompression failed: " + err;
         }
 
-        const entries = decompressed.split(";").filter(e => e.trim());
-        const firstEntry = entries[0];
-
-        const bgMatch = firstEntry.match(/1_(\d+)_2_(\d+)_3_(\d+)/);
-        const groundMatch = firstEntry.match(/4_(\d+)_5_(\d+)_6_(\d+)/);
+        // Extract BG color from first section (pipe-separated)
+        const sections = decompressed.split("|");
 
         let bgColor = 0;
+        if (sections[0]) {
+          const bgMatch = sections[0].match(/1_(\d+)_2_(\d+)_3_(\d+)/);
+          if (bgMatch) {
+            const [_, r, g, b] = bgMatch.map(Number);
+            bgColor = rgbTo24Bit(r, g, b);
+          }
+        }
+
+        // Extract ground color from second section (index 1)
         let groundColor = 0;
-
-        if (bgMatch) {
-          const [_, r, g, b] = bgMatch.map(Number);
-          bgColor = rgbTo24Bit(r, g, b);
+        if (sections[1]) {
+          const groundMatch = sections[1].match(/1_(\d+)_2_(\d+)_3_(\d+)/);
+          if (groundMatch) {
+            const [_, r, g, b] = groundMatch.map(Number);
+            groundColor = rgbTo24Bit(r, g, b);
+          }
         }
 
-        if (groundMatch) {
-          const [_, r, g, b] = groundMatch.map(Number);
-          groundColor = rgbTo24Bit(r, g, b);
-        }
-
+        // Parse objects from decompressed k4 after semicolon
+        const entries = decompressed.split(";").filter(e => e.trim());
         const objs = [];
 
         for (let i = 1; i < entries.length; i++) {
@@ -151,8 +155,8 @@
           const roundedY = roundToNearest(adjY, 30);
           const gridX = roundedX / 30;
           const gridY = roundedY / 30;
-          const offsetX = +(adjX - roundedX).toFixed(2);
-          const offsetY = +(adjY - roundedY).toFixed(2);
+          const offsetX = Math.floor(adjX - roundedX);
+          const offsetY = Math.floor(adjY - roundedY);
 
           if (gridX < 1 || gridY < 1) continue;
 
@@ -178,12 +182,23 @@
           objs.push(obj);
         }
 
-        const rawSpeed = parseFloat(allKeyValues["kI3"]);
-        const speed = mapSpeed(rawSpeed);
-        const rawGamemode = parseInt(allKeyValues["kA2"]);
-        const gamemode = mapGamemode(rawGamemode);
+        // Extract speed and gamemode from decompressed string by matching kA4 and kA2 keys:
+        let levelSpeedRaw = 0;
+        const speedMatch = decompressed.match(/kA4,(\d+)/);
+        if (speedMatch) {
+          levelSpeedRaw = parseInt(speedMatch[1]) || 0;
+        }
+        const speed = mapLevelSpeed(levelSpeedRaw);
 
-        let songKey = parseInt(allKeyValues["k8"] ?? 0) + 1;
+        let gameModeRaw = 0;
+        const gameModeMatch = decompressed.match(/kA2,(\d+)/);
+        if (gameModeMatch) {
+          gameModeRaw = parseInt(gameModeMatch[1]) || 0;
+        }
+        const gamemode = mapGameMode(gameModeRaw);
+
+        // Determine song:
+        let songKey = parseInt(globalKeyMap["k8"] ?? 0) + 1;
         if (songKey > 7) songKey = 7;
         const song = `N${songKey}`;
 
@@ -192,7 +207,7 @@
           let i = 0;
           while (i < array.length) {
             let count = 1;
-            while (i + count < array.length && JSON.stringify(array[i]) === JSON.stringify(array[i + count])) {
+            while (i + count < array.length && array[i] === array[i + count]) {
               count++;
             }
             result.push(`${array[i]},(${count})`);
@@ -205,51 +220,60 @@
         const gridHeight = 64;
         const totalTiles = gridWidth * gridHeight;
 
+        // Initialize 2D grids for blocks, rotations, edits, and offsets
         let blockGrid = Array(totalTiles).fill().map(() => []);
-        let rotGrid = Array(totalTiles).fill(1);
-        let editGrid = Array(totalTiles).fill(0);
-        let offsetGrid = Array(totalTiles).fill("0&0");
+        let rotGrid = Array(totalTiles).fill().map(() => []);
+        let editGrid = Array(totalTiles).fill().map(() => []);
+        let offsetGrid = Array(totalTiles).fill().map(() => []);
 
+        // Place objects into grids
         objs.forEach(obj => {
           const index = (Math.floor(obj.gridY) - 1) * gridWidth + (Math.floor(obj.gridX) - 1);
           if (index < 0 || index >= totalTiles) return;
+
           blockGrid[index].push(obj.id);
-          rotGrid[index] = obj.rotation / 90;
-          offsetGrid[index] = `${obj.offsetX}&${obj.offsetY}`;
+          rotGrid[index].push(obj.rotation / 90);
+          offsetGrid[index].push(`${obj.offsetX}&${obj.offsetY}`);
+
           if (obj.editObject !== 0) {
             const e = obj.editObject;
-            editGrid[index] = `${e.color}s${e.duration}t${e.type}`;
+            editGrid[index].push(`${e.color}s${e.duration}t${e.type}`);
+          } else {
+            editGrid[index].push(0);
           }
         });
 
-        const blockStrings = blockGrid.map(b => (b.length ? b.join(",") : "1"));
-        const rotStrings = rotGrid;
-        const editStrings = editGrid;
-        const offsetStrings = offsetGrid;
+        // Add air block as first block on each tile
+        for (let i = 0; i < totalTiles; i++) {
+          blockGrid[i].unshift(1);
+          rotGrid[i].unshift(1);
+          editGrid[i].unshift(0);
+          offsetGrid[i].unshift("0&0");
+        }
+
+        // Encode grids to save code format
+        const blockStrings = blockGrid.map(b => b.join(","));
+        const rotStrings = rotGrid.map(r => r.join(","));
+        const editStrings = editGrid.map(e => e.join(","));
+        const offsetStrings = offsetGrid.map(o => o.join(","));
 
         const blockCode = encodeRLE(blockStrings);
         const rotCode = "R" + encodeRLE(rotStrings);
         const bgCode = "B" + bgColor;
         const grCode = "G" + groundColor;
-        const spdCode = "S" + speed;
+        const sCode = `S${gamemode}${speed}`;
         const editCode = "E" + encodeRLE(editStrings);
         const musicCode = `M${song}`;
         const offsetCode = "O" + encodeRLE(offsetStrings);
 
-        const finalCode = `${blockCode}${rotCode}${bgCode}${grCode}${spdCode}${editCode}${musicCode}${offsetCode}`;
+        const finalCode = `${blockCode}${rotCode}${bgCode}${grCode}${sCode}${editCode}${musicCode}${offsetCode}`;
 
         out.textContent = finalCode;
       };
       reader.readAsText(file);
     };
 
-    document.getElementById("debugBtn").onclick = () => {
-      const debugObj = { ...globalKeyMap };
-      if (lastDecompressedK4) {
-        debugObj["k4_decoded"] = lastDecompressedK4;
-      }
-      out.textContent = JSON.stringify(debugObj, null, 2);
-    };
+    const out = document.getElementById("out");
   </script>
 </body>
 </html>
