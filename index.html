@@ -170,8 +170,10 @@
           if (!(rawId in idMap)) continue;
           let mappedId = idMap[rawId];
 
-          if (mappedId === 47) mappedId = 49;
-          else if (mappedId === 49) mappedId = 47;
+          if ((k4 === 1) !== (k5 === 1)) {
+            if (mappedId === 47) mappedId = 49;
+            else if (mappedId === 49) mappedId = 47;
+          }
 
           if (mappedId === 1) continue;
 
