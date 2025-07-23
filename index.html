@@ -240,7 +240,7 @@
           const idx = (Math.floor(obj.gridY) - 1) * 3125 + (Math.floor(obj.gridX) - 1);
           if (idx < 0 || idx >= blockGrid.length) return;
           blockGrid[idx].push(obj.id);
-          rotGrid[idx].push(obj.rotation / 90);
+          rotGrid[idx].push(obj.rotation === 0 ? 4 : obj.rotation / 90);
           offsetGrid[idx].push(`${obj.offsetX}&${obj.offsetY}`);
           editGrid[idx].push(obj.editObject !== 0 ? `${obj.editObject.color}s${obj.editObject.duration}t${obj.editObject.type}` : 0);
         });
