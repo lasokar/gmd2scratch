@@ -175,8 +175,12 @@
 
           if (mappedId === 1) continue;
 
-          if (k4 === 1) rotation += rotationAddKey4[mappedId] || 0;
-          if (k5 === 1) rotation += rotationAddKey5[mappedId] || 0;
+          if (k4 === 1 && k5 === 1) {
+            rotation += 180;
+          } else {
+            if (k4 === 1) rotation += rotationAddKey4[mappedId] || 0;
+            if (k5 === 1) rotation += rotationAddKey5[mappedId] || 0;
+          }
           rotation = normalizeRotation(rotation);
 
           let adjX = x + 15;
