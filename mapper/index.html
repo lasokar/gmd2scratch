@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GMD2Scratch ID Mapper</title>
+  <style>
+    body { font-family: sans-serif; padding: 2em; }
+    textarea { width: 100%; height: 300px; font-family: monospace; }
+    pre {
+      background: #f5f5f5;
+      padding: 1em;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border: 1px solid #ccc;
+      margin-top: 0.5em;
+    }
+    button {
+      font-size: 1rem;
+      padding: 0.5em 1em;
+      margin-top: 1em;
+    }
+    h2 {
+      margin-top: 2em;
+    }
+  </style>
+</head>
+<body>
+  <h1>GMD2Scratch ID Mapper</h1>
+  <p>Paste JSON debugger data below:</p>
+  <textarea id="input" placeholder='Paste JSON here...'></textarea>
+  <br />
+  <button onclick="mapIDs()">Generate idMap &amp; yOffsetMap</button>
+
+  <h2>Resulting <code>idMap</code>:</h2>
+  <pre id="outputIdMap">{}</pre>
+
+  <h2>Resulting <code>yOffsetMap</code>:</h2>
+  <pre id="outputYOffsetMap">{}</pre>
+
+  <script>
+    function formatObject(obj, maxLen = 60, sortByKey = false) {
+      const entries = Object.entries(obj).sort((a, b) => {
+        if (sortByKey) return Number(a[0]) - Number(b[0]);
+        return a[1] - b[1];
+      });
+
+      let lines = [];
+      let currentLine = '  ';
+
+      for (let i = 0; i < entries.length; i++) {
+        const [k, v] = entries[i];
+        const entryStr = `${k}: ${v}`;
+        const appendStr = currentLine.trim().length === 0 ? entryStr : ', ' + entryStr;
+
+        if ((currentLine.length + appendStr.length) > maxLen) {
+          lines.push(currentLine + ',');
+          currentLine = '  ' + entryStr;
+        } else {
+          currentLine += appendStr;
+        }
+      }
+
+      if (currentLine.trim().length > 0) {
+        lines.push(currentLine);
+      }
+
+      return `{\n${lines.join('\n')}\n}`;
+    }
+
+    function mapIDs() {
+      const input = document.getElementById("input").value.trim();
+      let data;
+      try {
+        data = JSON.parse(input);
+      } catch (e) {
+        document.getElementById("outputIdMap").textContent = "Invalid JSON.";
+        document.getElementById("outputYOffsetMap").textContent = "{}";
+        return;
+      }
+
+      const objects = Array.isArray(data) ? data : (data.objects || []);
+
+      const unknownObjects = objects.filter(obj => obj.mappedId === "unknown");
+
+      const groups = {};
+      unknownObjects.forEach(obj => {
+        if (!groups[obj.gridX]) groups[obj.gridX] = [];
+        groups[obj.gridX].push(obj);
+      });
+
+      const sortedGridXs = Object.keys(groups).map(Number).sort((a, b) => a - b);
+
+      const idMap = {};
+      const yOffsetMap = {};
+
+      sortedGridXs.forEach((gridX, index) => {
+        const mappedId = 50 + index;
+        groups[gridX].forEach(obj => {
+          idMap[obj.rawId] = mappedId;
+
+          const offsetY = Number(obj.offsetY);
+          if (!isNaN(offsetY)) {
+            const yOffset = -offsetY;
+            if (yOffset !== 0 && Number.isFinite(yOffset)) {
+              yOffsetMap[mappedId] = yOffset;
+            }
+          }
+        });
+      });
+
+      const idMapStr = `const idMap = ${formatObject(idMap)};`;
+      const yOffsetMapStr = `const yOffsetMap = ${formatObject(yOffsetMap, 60, true)};`;
+
+      document.getElementById("outputIdMap").textContent = idMapStr;
+      document.getElementById("outputYOffsetMap").textContent = yOffsetMapStr;
+    }
+  </script>
+</body>
+</html>
