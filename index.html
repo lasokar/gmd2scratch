@@ -312,7 +312,7 @@
         const sCode = `S${gamemode}${speed}`;
 
         const editCode = "E" + encodeRLE(editGrid.map(e => e.join(",")));
-        const songKey = Math.min(parseInt(allKeyValues["k8"] ?? 0) + 1, 7);
+        const songKey = Math.min(parseInt(allKeyValues["k8"] ?? 0) + 1, 39);
         const musicCode = `M${"N" + songKey}`;
         const offsetCode = "O" + encodeRLE(offsetGrid.map(o => o.join(",")));
 
