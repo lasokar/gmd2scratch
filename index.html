@@ -198,6 +198,7 @@
             else if (key === "8") key8 = parseInt(val);
             else if (key === "9") key9 = parseInt(val);
             else if (key === "10") key10 = parseFloat(val);
+            else if (key === "11") key11 = parseFloat(val);
             else if (key === "23") key23 = parseInt(val);
           }
 
@@ -272,6 +273,9 @@
 
           if (mappedId === 41) {
             let type = rawId === 29 ? 1 : rawId === 30 ? 2 : key23 === 1000 ? 1 : key23 === 1001 ? 2 : null;
+            if (typeof key11 !== "undefined" && key11 === 1 && type !== null) {
+              type += 2;
+            }
             obj.editObject = {
               type, duration: key10,
               color: rgbTo24Bit(key7, key8, key9)
